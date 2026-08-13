@@ -4,7 +4,7 @@
 [![Version](https://img.shields.io/badge/Symcon%20Version-6.4-blue.svg?style=flat-square)](https://www.symcon.de/produkt/)
 [![Version](https://img.shields.io/badge/Modul%20Version-3.0.20221231-orange.svg?style=flat-square)](https://github.com/Wilkware/MagicHomeController)
 [![Version](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-green.svg?style=flat-square)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
-[![Actions](https://img.shields.io/github/actions/workflow/status/wilkware/MagicHomeController/style.yml?branch=main&label=CheckStyle&style=flat-square)](https://github.com/Wilkware/MagicHomeController/actions)
+[![Actions](https://img.shields.io/github/actions/workflow/status/wilkware/MagicHomeController/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/Wilkware/MagicHomeController/actions)
 
 IP-Symcon Modul für die Ansteuerung von WiFi LED Controller der Firma _Magic Home_.
 

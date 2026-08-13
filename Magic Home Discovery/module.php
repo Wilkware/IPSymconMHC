@@ -2,99 +2,125 @@
 
 declare(strict_types=1);
 
-// Generell funktions
+/** Generell funktions  */
 require_once __DIR__ . '/../libs/_traits.php';
 
-// CLASS MagicHomeDiscovery
-class MagicHomeDiscovery extends IPSModule
-{
-    // Helper Traits
-    use MagicHelper;
-    use DebugHelper;
+/** Namespaced traits */
+use Wilkware\MagicHomeController\DebugHelper;
+use Wilkware\MagicHomeController\MagicHelper;
 
-    // Discovery constant
+/**
+ * CLASS MagicHomeDiscovery
+ */
+class MagicHomeDiscovery extends IPSModuleStrict
+{
+    // -------------------------------------------------------------------------
+    // Traits
+    // -------------------------------------------------------------------------
+
+    use DebugHelper;
+    use MagicHelper;
+
+    // -------------------------------------------------------------------------
+    // Constants
+    // -------------------------------------------------------------------------
+
+    /** @var string Discovery IP */
     private const DISCOVERY_IP = '255.255.255.255';
+
+    /** @var int Discovery Port */
     private const DISCOVERY_PORT = 48899;
+
+    /** @var string Discovery Message */
     private const DISCOVERY_MSG = 'HF-A11ASSISTHREAD';
+
+    /** @var string Discovery Version */
     private const DISCOVERY_VER = "AT+LVER\r";
+
+    /** @var int Discovery Timeout for Message */
     private const DISCOVERY_SEM = 1;
+
+    /** @var int Discovery Timeout for Version */
     private const DISCOVERY_SEV = 2;
 
-    // Controller ID
+    /** @var string Controller Module ID */
     private const MODUL_CONTROLLER_ID = '{E3529714-0243-4D6A-A8F1-899EEF818A1F}';
 
+    // -------------------------------------------------------------------------
+    // Methods
+    // -------------------------------------------------------------------------
+
     /**
-     * Create.
+     * In contrast to Construct, this function is called only once when creating the instance and starting IP-Symcon.
+     * Therefore, status variables and module properties which the module requires permanently should be created here.
+     *
+     * @return void
      */
-    public function Create()
+    public function Create(): void
     {
         //Never delete this line!
         parent::Create();
+
         // Properties
         $this->RegisterPropertyInteger('TargetCategory', 0);
     }
 
     /**
-     * Destroy.
+     * This function is called when deleting the instance during operation and when updating via "Module Control".
+     * The function is not called when exiting IP-Symcon.
+     *
+     * @return void
      */
-    public function Destroy()
+    public function Destroy(): void
     {
         //Never delete this line!
         parent::Destroy();
     }
 
     /**
-     * Apply Configuration Changes.
-     */
-    public function ApplyChanges()
-    {
-        //Never delete this line!
-        parent::ApplyChanges();
-
-        //Delete all references in order to readd them
-        foreach ($this->GetReferenceList() as $referenceID) {
-            $this->UnregisterReference($referenceID);
-        }
-
-        // Register reference to categorie
-        $this->RegisterReference($this->ReadPropertyInteger('TargetCategory'));
-    }
-
-    /**
-     * Configuration Form.
+     * The content can be overwritten in order to transfer a self-created configuration page.
+     * This way, content can be generated dynamically.
+     * In this case, the "form.json" on the file system is completely ignored.
      *
-     * @return JSON configuration string.
+     * @return string Content of the configuration page.
      */
-    public function GetConfigurationForm()
+    public function GetConfigurationForm(): string
     {
         $form = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
+
         // Version check
         $version = (float) IPS_GetKernelVersion();
+
         // Save location
         $location = $this->GetPathOfCategory($this->ReadPropertyInteger('TargetCategory'));
+
         // Enable or disable "TargetCategory" for 6.x
         if ($version < 7) {
             $form['elements'][2]['visible'] = true;
         }
+
         // All installed devices
         $installed = [];
         foreach (IPS_GetInstanceListByModuleID(self::MODUL_CONTROLLER_ID) as $instance) {
             $installed[IPS_GetProperty($instance, 'MAC')] = $instance;
         }
+
         // Discover controlers
         $controllers = $this->DiscoverController();
+
         // Collect all values
         $values = [];
+
         // Build configuration list values
         foreach ($controllers as $controller) {
-            $this->SendDebug(__FUNCTION__, $controller);
+            $this->LogDebug(__FUNCTION__, $controller);
             // only if we found the type of controller
             if (isset($controller['number'])) {
                 $value = [
                     'tcpip'         => $controller['tcpip'],
                     'macid'         => $controller['mac'],
                     'model'         => $controller['model'],
-                    'type'          => MAGIC_HOME_CONTROLLER[$controller['number']][0],
+                    'type'          => self::MAGIC_HOME_CONTROLLER[$controller['number']][0],
                     'info'          => $controller['info'],
                     'version'       => $controller['version'],
                     'firmware'      => $controller['firmware'],
@@ -122,7 +148,7 @@ class MagicHomeDiscovery extends IPSModule
                 'macid'         => $mac,
                 'tcpip'         => IPS_GetProperty($instance, 'TCPIP'),
                 'model'         => IPS_GetProperty($instance, 'MODEL'),
-                'type'          => MAGIC_HOME_CONTROLLER[IPS_GetProperty($instance, 'TYPE')][0],
+                'type'          => self::MAGIC_HOME_CONTROLLER[IPS_GetProperty($instance, 'TYPE')][0],
                 'info'          => '',
                 'version'       => ' - ',
                 'firmware'      => ' - ',
@@ -137,11 +163,30 @@ class MagicHomeDiscovery extends IPSModule
     }
 
     /**
+     * Is executed when "Apply" is pressed on the configuration page and immediately after the instance has been created.
+     *
+     * @return void
+     */
+    public function ApplyChanges(): void
+    {
+        //Never delete this line!
+        parent::ApplyChanges();
+
+        //Delete all references in order to readd them
+        foreach ($this->GetReferenceList() as $referenceID) {
+            $this->UnregisterReference($referenceID);
+        }
+
+        // Register reference to categorie
+        $this->RegisterReference($this->ReadPropertyInteger('TargetCategory'));
+    }
+
+    /**
      * Delivers all found controllers.
      *
-     * @return array configuration list all controller
+     * @return array<int,mixed> configuration list all controller
      */
-    private function DiscoverController()
+    private function DiscoverController(): array
     {
         // Create UDP Broadcast Socket
         $sock = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
@@ -159,7 +204,7 @@ class MagicHomeDiscovery extends IPSModule
             if ($ret === false) {
                 break;
             }
-            $this->SendDebug(__FUNCTION__, $buf); // e.g. '192.168.0.100,43219128B84F,AK001-ZJ210'
+            $this->LogDebug(__FUNCTION__, $buf); // e.g. '192.168.0.100,43219128B84F,AK001-ZJ210'
             $info = explode(',', $buf);
             $data[] = ['tcpip' => $info[0], 'mac' => $info[1], 'model' => $info[2]];
         }
@@ -171,13 +216,13 @@ class MagicHomeDiscovery extends IPSModule
             $ret = @socket_recvfrom($sock, $buf, 64, 0, $ip, $port);
             if ($ret === false) {
                 // NO DATA
-                $this->SendDebug(__FUNCTION__, 'No Version Data for model \'' . $controller['model'] . ' on ' . $controller['tcpip']);
+                $this->LogDebug(__FUNCTION__, 'No Version Data for model \'' . $controller['model'] . ' on ' . $controller['tcpip']);
             } else {
-                $this->SendDebug(__FUNCTION__, $buf); // '+ok=A1_18_20181031<CR>'
-                if ($this->StrStartsWith($buf, '+ok=')) {
+                $this->LogDebug(__FUNCTION__, $buf); // '+ok=A1_18_20181031<CR>'
+                if (str_starts_with($buf, '+ok=')) {
                     $buf = str_replace("\r", '', $buf); // \r = <CR>
                     $info = explode('_', $buf);
-                    $this->SendDebug(__FUNCTION__, $info);
+                    $this->LogDebug(__FUNCTION__, $info);
                     $data[$i]['number'] = intval(substr($info[0], 4), 16); // hex
                     $data[$i]['version'] = intval($info[1], 16); // hex
                     $data[$i]['firmware'] = substr($info[2], 6, 2) . '.' . substr($info[2], 4, 2) . '.' . substr($info[2], 0, 4);
@@ -189,32 +234,16 @@ class MagicHomeDiscovery extends IPSModule
         // close  socket
         socket_close($sock);
         // return list
-        $this->SendDebug(__FUNCTION__, $data);
+        $this->LogDebug(__FUNCTION__, $data);
         return $data;
-    }
-
-    /**
-     * Returns the instance ID for a given controler.
-     *
-     * @param string device IP adresss
-     * @return array device instance id
-     */
-    private function GetControlerInstances($ip)
-    {
-        $InstanceIDs = IPS_GetInstanceListByModuleID(self::MODUL_CONTROLLER_ID);
-        foreach ($InstanceIDs as $id) {
-            if (IPS_GetProperty($id, 'TCPIP') == $ip) {
-                return $id;
-            }
-        }
-        return 0;
     }
 
     /**
      * Returns the ascending list of category names for a given category id
      *
      * @param int $categoryId Category ID.
-     * @return array List of reverse catergory names.
+     *
+     * @return array<string> List of reverse catergory names.
      */
     private function GetPathOfCategory(int $categoryId): array
     {
@@ -231,17 +260,5 @@ class MagicHomeDiscovery extends IPSModule
         }
 
         return array_reverse($path);
-    }
-
-    /**
-     * Checks if a string starts with a given substring
-     *
-     * @param string haystack The string to search in.
-     * @param string needle The substring to search for in the haystack.
-     * @return bool Returns true if haystack begins with needle, false otherwise.
-     */
-    private function StrStartsWith(string $haystack, string $needle)
-    {
-        return (string) $needle !== '' && strncmp($haystack, $needle, strlen($needle)) === 0;
     }
 }

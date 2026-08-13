@@ -2,286 +2,128 @@
 
 declare(strict_types=1);
 
-// Generell funktions
+/** Generell funktions  */
 require_once __DIR__ . '/../libs/_traits.php';
 
-// CLASS MagicHomeController
-class MagicHomeController extends IPSModule
+/** Namespaced traits */
+use Wilkware\MagicHomeController\DebugHelper;
+use Wilkware\MagicHomeController\MagicHelper;
+use Wilkware\MagicHomeController\ProtocolLEDENET8Byte;
+
+use Wilkware\MagicHomeController\ProtocolLEDENET8ByteDimmableEffects;
+use Wilkware\MagicHomeController\ProtocolLEDENET9Byte;
+use Wilkware\MagicHomeController\ProtocolLEDENET9ByteDimmableEffects;
+use Wilkware\MagicHomeController\ProtocolLEDENETAddressableA1;
+use Wilkware\MagicHomeController\ProtocolLEDENETAddressableA2;
+use Wilkware\MagicHomeController\ProtocolLEDENETAddressableA3;
+use Wilkware\MagicHomeController\ProtocolLEDENETCCT;
+use Wilkware\MagicHomeController\ProtocolLEDENETOriginal;
+use Wilkware\MagicHomeController\VariableHelper;
+
+/**
+ * CLASS MagicHomeController
+ */
+class MagicHomeController extends IPSModuleStrict
 {
+    // -------------------------------------------------------------------------
+    // Traits
+    // -------------------------------------------------------------------------
+
     use DebugHelper;
     use MagicHelper;
-    use ProfileHelper;
     use VariableHelper;
 
-    // Socket constants
+    // -------------------------------------------------------------------------
+    // Socket Constants
+    // -------------------------------------------------------------------------
+
+    /** @var int Socket Port */
     private const SOCKET_PORT = 5577;
+
+    /** @var int Socket Time */
     private const SOCKET_TIME = 2;
 
-    // Effect Map Profil array (0, 0x25[37] .. 0x38[56])
-    private $assoPreset = [
-        [0x00, 'Manually', '', 0x000000],
-        [0x25, '7-step color sequence', '', 0x000000],
-        [0x26, 'pulsing red', '', 0xFF0000],
-        [0x27, 'pulsing green', '', 0x00FF00],
-        [0x28, 'pulsing blue', '', 0x0000FF],
-        [0x29, 'pulsing yellow', '', 0xFFFF00],
-        [0x2A, 'pulsing cyan', '', 0x00FFFF],
-        [0x2B, 'pulsing purple', '', 0xFF00FF],
-        [0x2C, 'pulsing white', '', 0xFFFFFF],
-        [0x2D, 'pulsing red + green', '', 0xF0F000],
-        [0x2E, 'pulsing red + blue', '', 0xF000F0],
-        [0x2F, 'ulsing green + blue', '', 0x00F0F0],
-        [0x30, '7-step flashing', '', 0xA0A0A0],
-        [0x31, 'flashing red', '', 0xFF0000],
-        [0x32, 'flashing green', '', 0x00FF00],
-        [0x33, 'flashing blue', '', 0x0000FF],
-        [0x34, 'flashing yellow', '', 0xFFFF00],
-        [0x35, 'flashing cyan', '', 0x00FFFF],
-        [0x36, 'flashing purple', '', 0xFF00FF],
-        [0x37, 'flashing white', '', 0xFFFFFF],
-        [0x38, '7-step color jumping', '', 0x000000],
-    ];
+    // -------------------------------------------------------------------------
+    // Presentations
+    // -------------------------------------------------------------------------
 
-    private $assoOriginal = [
-        [0, 'Manually', '', 0x000000],
-        [1, 'Circulate all modes', '', 0x000000],
-        [2, '7 colors change gradually', '', 0x000000],
-        [3, '7 colors run in olivary', '', 0x000000],
-        [4, '7 colors change quickly', '', 0x000000],
-        [5, '7 colors strobe-flash', '', 0x000000],
-        [6, '7 colors running, 1 point from start to end and return back', '', 0x000000],
-        [7, '7 colors running, multi points from start to end and return back', '', 0x000000],
-        [8, '7 colors overlay, multi points from start to end and return back', '', 0x000000],
-        [9, '7 colors overlay, multi points from the middle to the both ends and return back', '', 0x000000],
-        [10, '7 colors flow gradually, from start to end and return back', '', 0x000000],
-        [11, 'Fading out run, 7 colors from start to end and return back', '', 0x000000],
-        [12, 'Runs in olivary, 7 colors from start to end and return back', '', 0x000000],
-        [13, 'Fading out run, 7 colors start with white color from start to end and return back', '', 0x000000],
-        [14, 'Run circularly, 7 colors with black background, 1point from start to end', '', 0x000000],
-        [15, 'Run circularly, 7 colors with red background, 1point from start to end', '', 0x000000],
-        [16, 'Run circularly, 7 colors with green background, 1point from start to end', '', 0x000000],
-        [17, 'Run circularly, 7 colors with blue background, 1point from start to end', '', 0x000000],
-        [18, 'Run circularly, 7 colors with yellow background, 1point from start to end', '', 0x000000],
-        [19, 'Run circularly, 7 colors with purple background, 1point from start to end', '', 0x000000],
-        [20, 'Run circularly, 7 colors with cyan background, 1point from start to end', '', 0x000000],
-        [21, 'Run circularly, 7 colors with white background, 1point from start to end', '', 0x000000],
-        [22, 'Run circularly, 7 colors with black background, 1point from end to start', '', 0x000000],
-        [23, 'Run circularly, 7 colors with red background, 1point from end to start', '', 0x000000],
-        [24, 'Run circularly, 7 colors with green background, 1point from end to start', '', 0x000000],
-        [25, 'Run circularly, 7 colors with blue background, 1point from end to start', '', 0x000000],
-        [26, 'Run circularly, 7 colors with yellow background, 1point from end to start', '', 0x000000],
-        [27, 'Run circularly, 7 colors with purple background, 1point from end to start', '', 0x000000],
-        [28, 'Run circularly, 7 colors with cyan background, 1point from end to start', '', 0x000000],
-        [29, 'Run circularly, 7 colors with white background, 1point from end to start', '', 0x000000],
-        [30, 'Run circularly, 7 colors with black background, 1point from start to end and return back', '', 0x000000],
-        [31, 'Run circularly, 7 colors with red background, 1point from start to end and return back', '', 0x000000],
-        [32, 'Run circularly, 7 colors with green background, 1point from start to end and return back', '', 0x000000],
-        [33, 'Run circularly, 7 colors with blue background, 1point from start to end and return back', '', 0x000000],
-        [34, 'Run circularly, 7 colors with yellow background, 1point from start to end and return back', '', 0x000000],
-        [35, 'Run circularly, 7 colors with purple background, 1point from start to end and return back', '', 0x000000],
-        [36, 'Run circularly, 7 colors with cyan background, 1point from start to end and return back', '', 0x000000],
-        [37, 'Run circularly, 7 colors with white background, 1point from start to end and return back', '', 0x000000],
-        [38, 'Run circularly, 7 colors with black background, 1point from middle to both ends', '', 0x000000],
-        [39, 'Run circularly, 7 colors with red background, 1point from middle to both ends', '', 0x000000],
-        [40, 'Run circularly, 7 colors with green background, 1point from middle to both ends', '', 0x000000],
-        [41, 'Run circularly, 7 colors with blue background, 1point from middle to both ends', '', 0x000000],
-        [42, 'Run circularly, 7 colors with yellow background, 1point from middle to both ends', '', 0x000000],
-        [43, 'Run circularly, 7 colors with purple background, 1point from middle to both ends', '', 0x000000],
-        [44, 'Run circularly, 7 colors with cyan background, 1point from middle to both ends', '', 0x000000],
-        [45, 'Run circularly, 7 colors with white background, 1point from middle to both ends', '', 0x000000],
-        [46, 'Run circularly, 7 colors with black background, 1point from both ends to middle', '', 0x000000],
-        [47, 'Run circularly, 7 colors with red background, 1point from both ends to middle', '', 0x000000],
-        [48, 'Run circularly, 7 colors with green background, 1point from both ends to middle', '', 0x000000],
-        [49, 'Run circularly, 7 colors with blue background, 1point from both ends to middle', '', 0x000000],
-        [50, 'Run circularly, 7 colors with yellow background, 1point from both ends to middle', '', 0x000000],
-        [51, 'Run circularly, 7 colors with purple background, 1point from both ends to middle', '', 0x000000],
-        [52, 'Run circularly, 7 colors with cyan background, 1point from both ends to middle', '', 0x000000],
-        [53, 'Run circularly, 7 colors with white background, 1point from both ends to middle', '', 0x000000],
-        [54, 'Run circularly, 7 colors with black background, 1point from middle to both ends and return back', '', 0x000000],
-        [55, 'Run circularly, 7 colors with red background, 1point from middle to both ends and return back', '', 0x000000],
-        [56, 'Run circularly, 7 colors with green background, 1point from middle to both ends and return back', '', 0x000000],
-        [57, 'Run circularly, 7 colors with blue background, 1point from middle to both ends and return back', '', 0x000000],
-        [58, 'Run circularly, 7 colors with yellow background, 1point from middle to both ends and return back', '', 0x000000],
-        [59, 'Run circularly, 7 colors with purple background, 1point from middle to both ends and return back', '', 0x000000],
-        [60, 'Run circularly, 7 colors with cyan background, 1point from middle to both ends and return back', '', 0x000000],
-        [61, 'Run circularly, 7 colors with white background, 1point from middle to both ends and return back', '', 0x000000],
-        [203, 'Fading out run circularly, 7 colors each in red fading from start to end', '', 0x000000],
-        [204, 'Fading out run circularly, 7 colors each in green fading from start to end', '', 0x000000],
-        [205, 'Fading out run circularly, 7 colors each in blue fading from start to end', '', 0x000000],
-        [206, 'Fading out run circularly, 7 colors each in yellow fading from start to end', '', 0x000000],
-        [207, 'Fading out run circularly, 7 colors each in purple fading from start to end', '', 0x000000],
-        [208, 'Fading out run circularly, 7 colors each in cyan fading from start to end', '', 0x000000],
-        [209, 'Fading out run circularly, 7 colors each in white fading from start to end', '', 0x000000],
-        [210, 'Fading out run circularly, 7 colors each in red fading from end to start', '', 0x000000],
-        [211, 'Fading out run circularly, 7 colors each in green fading from end to start', '', 0x000000],
-        [212, 'Fading out run circularly, 7 colors each in blue fading from end to start', '', 0x000000],
-        [213, 'Fading out run circularly, 7 colors each in yellow fading from end to start', '', 0x000000],
-        [214, 'Fading out run circularly, 7 colors each in purple fading from end to start', '', 0x000000],
-        [215, 'Fading out run circularly, 7 colors each in cyan fading from end to start', '', 0x000000],
-        [216, 'Fading out run circularly, 7 colors each in white fading from end to start', '', 0x000000],
-        [217, 'Fading out run circularly, 7 colors each in red fading from start to end and return back', '', 0x000000],
-        [218, 'Fading out run circularly, 7 colors each in green fading from start to end and return back', '', 0x000000],
-        [219, 'Fading out run circularly, 7 colors each in blue fading from start to end and return back', '', 0x000000],
-        [220, 'Fading out run circularly, 7 colors each in yellow fading from start to end and return back', '', 0x000000],
-        [221, 'Fading out run circularly, 7 colors each in purple fading from start to end and return back', '', 0x000000],
-        [222, 'Fading out run circularly, 7 colors each in cyan fading from start to end and return back', '', 0x000000],
-        [223, 'Fading out run circularly, 7 colors each in white fading from start to end and return back', '', 0x000000],
-        [224, '7 colors each in red run circularly, multi points from start to end', '', 0x000000],
-        [225, '7 colors each in green run circularly, multi points from start to end', '', 0x000000],
-        [226, '7 colors each in blue run circularly, multi points from start to end', '', 0x000000],
-        [227, '7 colors each in yellow run circularly, multi points from start to end', '', 0x000000],
-        [228, '7 colors each in purple run circularly, multi points from start to end', '', 0x000000],
-        [229, '7 colors each in cyan run circularly, multi points from start to end', '', 0x000000],
-        [230, '7 colors each in white run circularly, multi points from start to end', '', 0x000000],
-        [231, '7 colors each in red run circularly, multi points from end to start', '', 0x000000],
-        [232, '7 colors each in green run circularly, multi points from end to start', '', 0x000000],
-        [233, '7 colors each in blue run circularly, multi points from end to start', '', 0x000000],
-        [234, '7 colors each in yellow run circularly, multi points from end to start', '', 0x000000],
-        [235, '7 colors each in purple run circularly, multi points from end to start', '', 0x000000],
-        [236, '7 colors each in cyan run circularly, multi points from end to start', '', 0x000000],
-        [237, '7 colors each in white run circularly, multi points from end to start', '', 0x000000],
-        [238, '7 colors each in red run circularly, multi points from start to end and return back', '', 0x000000],
-        [239, '7 colors each in green run circularly, multi points from start to end and return back', '', 0x000000],
-        [240, '7 colors each in blue run circularly, multi points from start to end and return back', '', 0x000000],
-        [241, '7 colors each in yellow run circularly, multi points from start to end and return back', '', 0x000000],
-        [242, '7 colors each in purple run circularly, multi points from start to end and return back', '', 0x000000],
-        [243, '7 colors each in cyan run circularly, multi points from start to end and return back', '', 0x000000],
-        [244, '7 colors each in white run circularly, multi points from start to end and return back', '', 0x000000],
-        [266, '7 colors run with black background from start to end', '', 0x000000],
-        [267, '7 colors run with red background from start to end', '', 0x000000],
-        [268, '7 colors run with green background from start to end', '', 0x000000],
-        [269, '7 colors run with blue background from start to end', '', 0x000000],
-        [270, '7 colors run with yellow background from start to end', '', 0x000000],
-        [271, '7 colors run with purple background from start to end', '', 0x000000],
-        [272, '7 colors run with cyan background from start to end', '', 0x000000],
-        [273, '7 colors run with white background from start to end', '', 0x000000],
-        [274, '7 colors run with black background from end to start', '', 0x000000],
-        [275, '7 colors run with red background from end to start', '', 0x000000],
-        [276, '7 colors run with green background from end to start', '', 0x000000],
-        [277, '7 colors run with blue background from end to start', '', 0x000000],
-        [278, '7 colors run with yellow background from end to start', '', 0x000000],
-        [279, '7 colors run with purple background from end to start', '', 0x000000],
-        [280, '7 colors run with cyan background from end to start', '', 0x000000],
-        [281, '7 colors run with white background from end to start', '', 0x000000],
-        [291, '7 colors run gradually + 7 colors change quickly', '', 0x000000],
-        [292, '7 colors run gradually + 7 colors flash', '', 0x000000],
-        [295, '7 colors change quickly + 7 colors flash', '', 0x000000],
-        [298, '7 colors run gradually + 7 colors change quickly + 7 colors flash', '', 0x000000],
-        [299, '7 colors run in olivary + 7 colors change quickly + 7 colors flash', '', 0x000000],
-        [300, '7 colors run gradually + 7 colors run in olivary + 7 colors change quickly + 7 color flash', '', 0x000000],
-    ];
-
-    private $assoAddressable = [
-        [0, 'Manually', '', 0x000000],
-        [1, 'RBM 1', '', 0x000000],
-        [2, 'RBM 2', '', 0x000000],
-        [3, 'RBM 3', '', 0x000000],
-        [4, 'RBM 4', '', 0x000000],
-        [5, 'RBM 5', '', 0x000000],
-        [6, 'RBM 6', '', 0x000000],
-        [7, 'RBM 7', '', 0x000000],
-        [8, 'RBM 8', '', 0x000000],
-        [9, 'RBM 9', '', 0x000000],
-        [10, 'RBM 10', '', 0x000000],
-        [11, 'RBM 11', '', 0x000000],
-        [12, 'RBM 12', '', 0x000000],
-        [13, 'RBM 13', '', 0x000000],
-        [14, 'RBM 14', '', 0x000000],
-        [15, 'RBM 15', '', 0x000000],
-        [16, 'RBM 16', '', 0x000000],
-        [17, 'RBM 17', '', 0x000000],
-        [18, 'RBM 18', '', 0x000000],
-        [19, 'RBM 19', '', 0x000000],
-        [20, 'RBM 20', '', 0x000000],
-        [21, 'RBM 21', '', 0x000000],
-        [22, 'RBM 22', '', 0x000000],
-        [23, 'RBM 23', '', 0x000000],
-        [24, 'RBM 24', '', 0x000000],
-        [25, 'RBM 25', '', 0x000000],
-        [26, 'RBM 26', '', 0x000000],
-        [27, 'RBM 27', '', 0x000000],
-        [28, 'RBM 28', '', 0x000000],
-        [29, 'RBM 29', '', 0x000000],
-        [30, 'RBM 30', '', 0x000000],
-        [31, 'RBM 31', '', 0x000000],
-        [32, 'RBM 32', '', 0x000000],
-        [33, 'RBM 33', '', 0x000000],
-        [34, 'RBM 34', '', 0x000000],
-        [35, 'RBM 35', '', 0x000000],
-        [36, 'RBM 36', '', 0x000000],
-        [37, 'RBM 37', '', 0x000000],
-        [38, 'RBM 38', '', 0x000000],
-        [39, 'RBM 39', '', 0x000000],
-        [40, 'RBM 40', '', 0x000000],
-        [41, 'RBM 41', '', 0x000000],
-        [42, 'RBM 42', '', 0x000000],
-        [43, 'RBM 43', '', 0x000000],
-        [44, 'RBM 44', '', 0x000000],
-        [45, 'RBM 45', '', 0x000000],
-        [46, 'RBM 46', '', 0x000000],
-        [47, 'RBM 47', '', 0x000000],
-        [48, 'RBM 48', '', 0x000000],
-        [49, 'RBM 49', '', 0x000000],
-        [50, 'RBM 50', '', 0x000000],
-        [51, 'RBM 51', '', 0x000000],
-        [52, 'RBM 52', '', 0x000000],
-        [53, 'RBM 53', '', 0x000000],
-        [54, 'RBM 54', '', 0x000000],
-        [55, 'RBM 55', '', 0x000000],
-        [56, 'RBM 56', '', 0x000000],
-        [57, 'RBM 57', '', 0x000000],
-        [58, 'RBM 58', '', 0x000000],
-        [59, 'RBM 59', '', 0x000000],
-        [60, 'RBM 60', '', 0x000000],
-        [61, 'RBM 61', '', 0x000000],
-        [62, 'RBM 62', '', 0x000000],
-        [63, 'RBM 63', '', 0x000000],
-        [64, 'RBM 64', '', 0x000000],
-        [65, 'RBM 65', '', 0x000000],
-        [66, 'RBM 66', '', 0x000000],
-        [67, 'RBM 67', '', 0x000000],
-        [68, 'RBM 68', '', 0x000000],
-        [69, 'RBM 69', '', 0x000000],
-        [70, 'RBM 70', '', 0x000000],
-        [71, 'RBM 71', '', 0x000000],
-        [72, 'RBM 72', '', 0x000000],
-        [73, 'RBM 73', '', 0x000000],
-        [74, 'RBM 74', '', 0x000000],
-        [75, 'RBM 75', '', 0x000000],
-        [76, 'RBM 76', '', 0x000000],
-        [77, 'RBM 77', '', 0x000000],
-        [78, 'RBM 78', '', 0x000000],
-        [79, 'RBM 79', '', 0x000000],
-        [80, 'RBM 80', '', 0x000000],
-        [81, 'RBM 81', '', 0x000000],
-        [82, 'RBM 82', '', 0x000000],
-        [83, 'RBM 83', '', 0x000000],
-        [84, 'RBM 84', '', 0x000000],
-        [85, 'RBM 85', '', 0x000000],
-        [86, 'RBM 86', '', 0x000000],
-        [87, 'RBM 87', '', 0x000000],
-        [88, 'RBM 88', '', 0x000000],
-        [89, 'RBM 89', '', 0x000000],
-        [90, 'RBM 90', '', 0x000000],
-        [91, 'RBM 91', '', 0x000000],
-        [92, 'RBM 92', '', 0x000000],
-        [93, 'RBM 93', '', 0x000000],
-        [94, 'RBM 94', '', 0x000000],
-        [95, 'RBM 95', '', 0x000000],
-        [96, 'RBM 96', '', 0x000000],
-        [97, 'RBM 97', '', 0x000000],
-        [98, 'RBM 98', '', 0x000000],
-        [99, 'RBM 99', '', 0x000000],
-        [100, 'RBM 100', '', 0x000000],
-        [101, 'RBM 101', '', 0x000000],  # Not in the Magic Home App (only set by remote)
-        [102, 'RBM 102', '', 0x000000],  # Not in the Magic Home App (only set by remote)
-        [255, 'Circulate all modes', '', 0x000000],  # Cycles all
+    /**
+     * @var array<string,mixed> Switch Presentation (Switch)
+     */
+    private const MHC_PRESENTATION_SWITCH = [
+        'PRESENTATION'   => VARIABLE_PRESENTATION_SWITCH,
+        'USE_ICON_FALSE' => true,
+        'USAGE_TYPE'     => 0,
+        'ICON_TRUE'      => 'lightbulb-on',
+        'ICON_FALSE'     => 'lightbulb',
+        'GLOW_INTENSITY' => 50,
+        'GLOW_COLOR'     => 16771899,
     ];
 
     /**
-     * Create.
+     * @var array<string,mixed> HexColor Presentation (Color)
      */
-    public function Create()
+    private const MHC_PRESENTATION_COLOR = [
+        'PRESENTATION' => VARIABLE_PRESENTATION_SLIDER,
+        'USAGE_TYPE'   => 2,
+        'PERCENTAGE'   => true,
+        'ICON'         => 'signal',
+        'STEP_SIZE'    => 1.0,
+        'SUFFIX'       => ' %',
+    ];
+
+    /**
+     * @var array<string,mixed> Intensity Presentation (Slider)
+     */
+    private const MHC_PRESENTATION_SLIDER = [
+        'PRESENTATION' => VARIABLE_PRESENTATION_SLIDER,
+
+    ];
+
+    /**
+     * @var array<string,mixed> Preset Presentation (Enumeration)
+     */
+    private const MHC_PRESENTATION_PRESET = [
+        'PRESENTATION' => VARIABLE_PRESENTATION_ENUMERATION,
+        'OPTIONS'      => '[{"Caption":"Manually","Color":-1,"IconActive":false,"IconValue":"","Value":0},{"Caption":"7-step color sequence","Color":-1,"IconActive":false,"IconValue":"","Value":37},{"Caption":"pulsing red","Color":16711680,"IconActive":false,"IconValue":"","Value":38},{"Caption":"pulsing green","Color":65280,"IconActive":false,"IconValue":"","Value":39},{"Caption":"pulsing blue","Color":255,"IconActive":false,"IconValue":"","Value":40},{"Caption":"pulsing yellow","Color":16776960,"IconActive":false,"IconValue":"","Value":41},{"Caption":"pulsing cyan","Color":65535,"IconActive":false,"IconValue":"","Value":42},{"Caption":"pulsing purple","Color":16711935,"IconActive":false,"IconValue":"","Value":43},{"Caption":"pulsing white","Color":16777215,"IconActive":false,"IconValue":"","Value":44},{"Caption":"pulsing red + green","Color":15790080,"IconActive":false,"IconValue":"","Value":45},{"Caption":"pulsing red + blue","Color":15728880,"IconActive":false,"IconValue":"","Value":46},{"Caption":"ulsing green + blue","Color":61680,"IconActive":false,"IconValue":"","Value":47},{"Caption":"7-step flashing","Color":10526880,"IconActive":false,"IconValue":"","Value":48},{"Caption":"flashing red","Color":16711680,"IconActive":false,"IconValue":"","Value":49},{"Caption":"flashing green","Color":65280,"IconActive":false,"IconValue":"","Value":50},{"Caption":"flashing blue","Color":255,"IconActive":false,"IconValue":"","Value":51},{"Caption":"flashing yellow","Color":16776960,"IconActive":false,"IconValue":"","Value":52},{"Caption":"flashing cyan","Color":65535,"IconActive":false,"IconValue":"","Value":53},{"Caption":"flashing purple","Color":16711935,"IconActive":false,"IconValue":"","Value":54},{"Caption":"flashing white","Color":16777215,"IconActive":false,"IconValue":"","Value":55},{"Caption":"7-step color jumping","Color":-1,"IconActive":false,"IconValue":"","Value":56}]',
+        'LAYOUT'       => 0,
+        'ICON'         => 'Bulb',
+        'DISPLAY'      => 0,
+    ];
+
+    /**
+     * @var array<string,mixed> Original Presentation (Enumeration)
+     */
+    private const MHC_PRESENTATION_ORIGINAL = [
+        'PRESENTATION' => VARIABLE_PRESENTATION_ENUMERATION,
+        'OPTIONS'      => '[{"Caption":"Manually","Color":-1,"IconActive":false,"IconValue":"","Value":0},{"Caption":"Circulate all modes","Color":-1,"IconActive":false,"IconValue":"","Value":1},{"Caption":"7 colors change gradually","Color":-1,"IconActive":false,"IconValue":"","Value":2},{"Caption":"7 colors run in olivary","Color":-1,"IconActive":false,"IconValue":"","Value":3},{"Caption":"7 colors change quickly","Color":-1,"IconActive":false,"IconValue":"","Value":4},{"Caption":"7 colors strobe-flash","Color":-1,"IconActive":false,"IconValue":"","Value":5},{"Caption":"7 colors running, 1 point from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":6},{"Caption":"7 colors running, multi points from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":7},{"Caption":"7 colors overlay, multi points from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":8},{"Caption":"7 colors overlay, multi points from the middle to the both ends and return back","Color":-1,"IconActive":false,"IconValue":"","Value":9},{"Caption":"7 colors flow gradually, from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":10},{"Caption":"Fading out run, 7 colors from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":11},{"Caption":"Runs in olivary, 7 colors from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":12},{"Caption":"Fading out run, 7 colors start with white color from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":13},{"Caption":"Run circularly, 7 colors with black background, 1point from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":14},{"Caption":"Run circularly, 7 colors with red background, 1point from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":15},{"Caption":"Run circularly, 7 colors with green background, 1point from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":16},{"Caption":"Run circularly, 7 colors with blue background, 1point from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":17},{"Caption":"Run circularly, 7 colors with yellow background, 1point from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":18},{"Caption":"Run circularly, 7 colors with purple background, 1point from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":19},{"Caption":"Run circularly, 7 colors with cyan background, 1point from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":20},{"Caption":"Run circularly, 7 colors with white background, 1point from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":21},{"Caption":"Run circularly, 7 colors with black background, 1point from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":22},{"Caption":"Run circularly, 7 colors with red background, 1point from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":23},{"Caption":"Run circularly, 7 colors with green background, 1point from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":24},{"Caption":"Run circularly, 7 colors with blue background, 1point from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":25},{"Caption":"Run circularly, 7 colors with yellow background, 1point from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":26},{"Caption":"Run circularly, 7 colors with purple background, 1point from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":27},{"Caption":"Run circularly, 7 colors with cyan background, 1point from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":28},{"Caption":"Run circularly, 7 colors with white background, 1point from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":29},{"Caption":"Run circularly, 7 colors with black background, 1point from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":30},{"Caption":"Run circularly, 7 colors with red background, 1point from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":31},{"Caption":"Run circularly, 7 colors with green background, 1point from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":32},{"Caption":"Run circularly, 7 colors with blue background, 1point from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":33},{"Caption":"Run circularly, 7 colors with yellow background, 1point from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":34},{"Caption":"Run circularly, 7 colors with purple background, 1point from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":35},{"Caption":"Run circularly, 7 colors with cyan background, 1point from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":36},{"Caption":"Run circularly, 7 colors with white background, 1point from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":37},{"Caption":"Run circularly, 7 colors with black background, 1point from middle to both ends","Color":-1,"IconActive":false,"IconValue":"","Value":38},{"Caption":"Run circularly, 7 colors with red background, 1point from middle to both ends","Color":-1,"IconActive":false,"IconValue":"","Value":39},{"Caption":"Run circularly, 7 colors with green background, 1point from middle to both ends","Color":-1,"IconActive":false,"IconValue":"","Value":40},{"Caption":"Run circularly, 7 colors with blue background, 1point from middle to both ends","Color":-1,"IconActive":false,"IconValue":"","Value":41},{"Caption":"Run circularly, 7 colors with yellow background, 1point from middle to both ends","Color":-1,"IconActive":false,"IconValue":"","Value":42},{"Caption":"Run circularly, 7 colors with purple background, 1point from middle to both ends","Color":-1,"IconActive":false,"IconValue":"","Value":43},{"Caption":"Run circularly, 7 colors with cyan background, 1point from middle to both ends","Color":-1,"IconActive":false,"IconValue":"","Value":44},{"Caption":"Run circularly, 7 colors with white background, 1point from middle to both ends","Color":-1,"IconActive":false,"IconValue":"","Value":45},{"Caption":"Run circularly, 7 colors with black background, 1point from both ends to middle","Color":-1,"IconActive":false,"IconValue":"","Value":46},{"Caption":"Run circularly, 7 colors with red background, 1point from both ends to middle","Color":-1,"IconActive":false,"IconValue":"","Value":47},{"Caption":"Run circularly, 7 colors with green background, 1point from both ends to middle","Color":-1,"IconActive":false,"IconValue":"","Value":48},{"Caption":"Run circularly, 7 colors with blue background, 1point from both ends to middle","Color":-1,"IconActive":false,"IconValue":"","Value":49},{"Caption":"Run circularly, 7 colors with yellow background, 1point from both ends to middle","Color":-1,"IconActive":false,"IconValue":"","Value":50},{"Caption":"Run circularly, 7 colors with purple background, 1point from both ends to middle","Color":-1,"IconActive":false,"IconValue":"","Value":51},{"Caption":"Run circularly, 7 colors with cyan background, 1point from both ends to middle","Color":-1,"IconActive":false,"IconValue":"","Value":52},{"Caption":"Run circularly, 7 colors with white background, 1point from both ends to middle","Color":-1,"IconActive":false,"IconValue":"","Value":53},{"Caption":"Run circularly, 7 colors with black background, 1point from middle to both ends and return back","Color":-1,"IconActive":false,"IconValue":"","Value":54},{"Caption":"Run circularly, 7 colors with red background, 1point from middle to both ends and return back","Color":-1,"IconActive":false,"IconValue":"","Value":55},{"Caption":"Run circularly, 7 colors with green background, 1point from middle to both ends and return back","Color":-1,"IconActive":false,"IconValue":"","Value":56},{"Caption":"Run circularly, 7 colors with blue background, 1point from middle to both ends and return back","Color":-1,"IconActive":false,"IconValue":"","Value":57},{"Caption":"Run circularly, 7 colors with yellow background, 1point from middle to both ends and return back","Color":-1,"IconActive":false,"IconValue":"","Value":58},{"Caption":"Run circularly, 7 colors with purple background, 1point from middle to both ends and return back","Color":-1,"IconActive":false,"IconValue":"","Value":59},{"Caption":"Run circularly, 7 colors with cyan background, 1point from middle to both ends and return back","Color":-1,"IconActive":false,"IconValue":"","Value":60},{"Caption":"Run circularly, 7 colors with white background, 1point from middle to both ends and return back","Color":-1,"IconActive":false,"IconValue":"","Value":61},{"Caption":"Fading out run circularly, 7 colors each in red fading from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":203},{"Caption":"Fading out run circularly, 7 colors each in green fading from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":204},{"Caption":"Fading out run circularly, 7 colors each in blue fading from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":205},{"Caption":"Fading out run circularly, 7 colors each in yellow fading from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":206},{"Caption":"Fading out run circularly, 7 colors each in purple fading from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":207},{"Caption":"Fading out run circularly, 7 colors each in cyan fading from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":208},{"Caption":"Fading out run circularly, 7 colors each in white fading from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":209},{"Caption":"Fading out run circularly, 7 colors each in red fading from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":210},{"Caption":"Fading out run circularly, 7 colors each in green fading from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":211},{"Caption":"Fading out run circularly, 7 colors each in blue fading from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":212},{"Caption":"Fading out run circularly, 7 colors each in yellow fading from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":213},{"Caption":"Fading out run circularly, 7 colors each in purple fading from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":214},{"Caption":"Fading out run circularly, 7 colors each in cyan fading from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":215},{"Caption":"Fading out run circularly, 7 colors each in white fading from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":216},{"Caption":"Fading out run circularly, 7 colors each in red fading from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":217},{"Caption":"Fading out run circularly, 7 colors each in green fading from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":218},{"Caption":"Fading out run circularly, 7 colors each in blue fading from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":219},{"Caption":"Fading out run circularly, 7 colors each in yellow fading from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":220},{"Caption":"Fading out run circularly, 7 colors each in purple fading from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":221},{"Caption":"Fading out run circularly, 7 colors each in cyan fading from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":222},{"Caption":"Fading out run circularly, 7 colors each in white fading from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":223},{"Caption":"7 colors each in red run circularly, multi points from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":224},{"Caption":"7 colors each in green run circularly, multi points from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":225},{"Caption":"7 colors each in blue run circularly, multi points from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":226},{"Caption":"7 colors each in yellow run circularly, multi points from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":227},{"Caption":"7 colors each in purple run circularly, multi points from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":228},{"Caption":"7 colors each in cyan run circularly, multi points from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":229},{"Caption":"7 colors each in white run circularly, multi points from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":230},{"Caption":"7 colors each in red run circularly, multi points from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":231},{"Caption":"7 colors each in green run circularly, multi points from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":232},{"Caption":"7 colors each in blue run circularly, multi points from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":233},{"Caption":"7 colors each in yellow run circularly, multi points from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":234},{"Caption":"7 colors each in purple run circularly, multi points from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":235},{"Caption":"7 colors each in cyan run circularly, multi points from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":236},{"Caption":"7 colors each in white run circularly, multi points from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":237},{"Caption":"7 colors each in red run circularly, multi points from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":238},{"Caption":"7 colors each in green run circularly, multi points from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":239},{"Caption":"7 colors each in blue run circularly, multi points from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":240},{"Caption":"7 colors each in yellow run circularly, multi points from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":241},{"Caption":"7 colors each in purple run circularly, multi points from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":242},{"Caption":"7 colors each in cyan run circularly, multi points from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":243},{"Caption":"7 colors each in white run circularly, multi points from start to end and return back","Color":-1,"IconActive":false,"IconValue":"","Value":244},{"Caption":"7 colors run with black background from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":266},{"Caption":"7 colors run with red background from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":267},{"Caption":"7 colors run with green background from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":268},{"Caption":"7 colors run with blue background from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":269},{"Caption":"7 colors run with yellow background from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":270},{"Caption":"7 colors run with purple background from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":271},{"Caption":"7 colors run with cyan background from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":272},{"Caption":"7 colors run with white background from start to end","Color":-1,"IconActive":false,"IconValue":"","Value":273},{"Caption":"7 colors run with black background from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":274},{"Caption":"7 colors run with red background from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":275},{"Caption":"7 colors run with green background from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":276},{"Caption":"7 colors run with blue background from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":277},{"Caption":"7 colors run with yellow background from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":278},{"Caption":"7 colors run with purple background from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":279},{"Caption":"7 colors run with cyan background from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":280},{"Caption":"7 colors run with white background from end to start","Color":-1,"IconActive":false,"IconValue":"","Value":281},{"Caption":"7 colors run gradually + 7 colors change quickly","Color":-1,"IconActive":false,"IconValue":"","Value":291},{"Caption":"7 colors run gradually + 7 colors flash","Color":-1,"IconActive":false,"IconValue":"","Value":292},{"Caption":"7 colors change quickly + 7 colors flash","Color":-1,"IconActive":false,"IconValue":"","Value":295},{"Caption":"7 colors run gradually + 7 colors change quickly + 7 colors flash","Color":-1,"IconActive":false,"IconValue":"","Value":298},{"Caption":"7 colors run in olivary + 7 colors change quickly + 7 colors flash","Color":-1,"IconActive":false,"IconValue":"","Value":299},{"Caption":"7 colors run gradually + 7 colors run in olivary + 7 colors change quickly + 7 color flash","Color":-1,"IconActive":false,"IconValue":"","Value":300}]',
+        'LAYOUT'       => 0,
+        'ICON'         => 'Bulb',
+        'DISPLAY'      => 0,
+    ];
+
+    /**
+     * @var array<string,mixed> Addressable Presentation (Enumeration)
+     */
+    private const MHC_PRESENTATION_ADDRESSABLE = [
+        'PRESENTATION' => VARIABLE_PRESENTATION_ENUMERATION,
+        'OPTIONS'      => '[{"Caption":"Manually","Color":-1,"IconActive":false,"IconValue":"","Value":0},{"Caption":"RBM 1","Color":-1,"IconActive":false,"IconValue":"","Value":1},{"Caption":"RBM 2","Color":-1,"IconActive":false,"IconValue":"","Value":2},{"Caption":"RBM 3","Color":-1,"IconActive":false,"IconValue":"","Value":3},{"Caption":"RBM 4","Color":-1,"IconActive":false,"IconValue":"","Value":4},{"Caption":"RBM 5","Color":-1,"IconActive":false,"IconValue":"","Value":5},{"Caption":"RBM 6","Color":-1,"IconActive":false,"IconValue":"","Value":6},{"Caption":"RBM 7","Color":-1,"IconActive":false,"IconValue":"","Value":7},{"Caption":"RBM 8","Color":-1,"IconActive":false,"IconValue":"","Value":8},{"Caption":"RBM 9","Color":-1,"IconActive":false,"IconValue":"","Value":9},{"Caption":"RBM 10","Color":-1,"IconActive":false,"IconValue":"","Value":10},{"Caption":"RBM 11","Color":-1,"IconActive":false,"IconValue":"","Value":11},{"Caption":"RBM 12","Color":-1,"IconActive":false,"IconValue":"","Value":12},{"Caption":"RBM 13","Color":-1,"IconActive":false,"IconValue":"","Value":13},{"Caption":"RBM 14","Color":-1,"IconActive":false,"IconValue":"","Value":14},{"Caption":"RBM 15","Color":-1,"IconActive":false,"IconValue":"","Value":15},{"Caption":"RBM 16","Color":-1,"IconActive":false,"IconValue":"","Value":16},{"Caption":"RBM 17","Color":-1,"IconActive":false,"IconValue":"","Value":17},{"Caption":"RBM 18","Color":-1,"IconActive":false,"IconValue":"","Value":18},{"Caption":"RBM 19","Color":-1,"IconActive":false,"IconValue":"","Value":19},{"Caption":"RBM 20","Color":-1,"IconActive":false,"IconValue":"","Value":20},{"Caption":"RBM 21","Color":-1,"IconActive":false,"IconValue":"","Value":21},{"Caption":"RBM 22","Color":-1,"IconActive":false,"IconValue":"","Value":22},{"Caption":"RBM 23","Color":-1,"IconActive":false,"IconValue":"","Value":23},{"Caption":"RBM 24","Color":-1,"IconActive":false,"IconValue":"","Value":24},{"Caption":"RBM 25","Color":-1,"IconActive":false,"IconValue":"","Value":25},{"Caption":"RBM 26","Color":-1,"IconActive":false,"IconValue":"","Value":26},{"Caption":"RBM 27","Color":-1,"IconActive":false,"IconValue":"","Value":27},{"Caption":"RBM 28","Color":-1,"IconActive":false,"IconValue":"","Value":28},{"Caption":"RBM 29","Color":-1,"IconActive":false,"IconValue":"","Value":29},{"Caption":"RBM 30","Color":-1,"IconActive":false,"IconValue":"","Value":30},{"Caption":"RBM 31","Color":-1,"IconActive":false,"IconValue":"","Value":31},{"Caption":"RBM 32","Color":-1,"IconActive":false,"IconValue":"","Value":32},{"Caption":"RBM 33","Color":-1,"IconActive":false,"IconValue":"","Value":33},{"Caption":"RBM 34","Color":-1,"IconActive":false,"IconValue":"","Value":34},{"Caption":"RBM 35","Color":-1,"IconActive":false,"IconValue":"","Value":35},{"Caption":"RBM 36","Color":-1,"IconActive":false,"IconValue":"","Value":36},{"Caption":"RBM 37","Color":-1,"IconActive":false,"IconValue":"","Value":37},{"Caption":"RBM 38","Color":-1,"IconActive":false,"IconValue":"","Value":38},{"Caption":"RBM 39","Color":-1,"IconActive":false,"IconValue":"","Value":39},{"Caption":"RBM 40","Color":-1,"IconActive":false,"IconValue":"","Value":40},{"Caption":"RBM 41","Color":-1,"IconActive":false,"IconValue":"","Value":41},{"Caption":"RBM 42","Color":-1,"IconActive":false,"IconValue":"","Value":42},{"Caption":"RBM 43","Color":-1,"IconActive":false,"IconValue":"","Value":43},{"Caption":"RBM 44","Color":-1,"IconActive":false,"IconValue":"","Value":44},{"Caption":"RBM 45","Color":-1,"IconActive":false,"IconValue":"","Value":45},{"Caption":"RBM 46","Color":-1,"IconActive":false,"IconValue":"","Value":46},{"Caption":"RBM 47","Color":-1,"IconActive":false,"IconValue":"","Value":47},{"Caption":"RBM 48","Color":-1,"IconActive":false,"IconValue":"","Value":48},{"Caption":"RBM 49","Color":-1,"IconActive":false,"IconValue":"","Value":49},{"Caption":"RBM 50","Color":-1,"IconActive":false,"IconValue":"","Value":50},{"Caption":"RBM 51","Color":-1,"IconActive":false,"IconValue":"","Value":51},{"Caption":"RBM 52","Color":-1,"IconActive":false,"IconValue":"","Value":52},{"Caption":"RBM 53","Color":-1,"IconActive":false,"IconValue":"","Value":53},{"Caption":"RBM 54","Color":-1,"IconActive":false,"IconValue":"","Value":54},{"Caption":"RBM 55","Color":-1,"IconActive":false,"IconValue":"","Value":55},{"Caption":"RBM 56","Color":-1,"IconActive":false,"IconValue":"","Value":56},{"Caption":"RBM 57","Color":-1,"IconActive":false,"IconValue":"","Value":57},{"Caption":"RBM 58","Color":-1,"IconActive":false,"IconValue":"","Value":58},{"Caption":"RBM 59","Color":-1,"IconActive":false,"IconValue":"","Value":59},{"Caption":"RBM 60","Color":-1,"IconActive":false,"IconValue":"","Value":60},{"Caption":"RBM 61","Color":-1,"IconActive":false,"IconValue":"","Value":61},{"Caption":"RBM 62","Color":-1,"IconActive":false,"IconValue":"","Value":62},{"Caption":"RBM 63","Color":-1,"IconActive":false,"IconValue":"","Value":63},{"Caption":"RBM 64","Color":-1,"IconActive":false,"IconValue":"","Value":64},{"Caption":"RBM 65","Color":-1,"IconActive":false,"IconValue":"","Value":65},{"Caption":"RBM 66","Color":-1,"IconActive":false,"IconValue":"","Value":66},{"Caption":"RBM 67","Color":-1,"IconActive":false,"IconValue":"","Value":67},{"Caption":"RBM 68","Color":-1,"IconActive":false,"IconValue":"","Value":68},{"Caption":"RBM 69","Color":-1,"IconActive":false,"IconValue":"","Value":69},{"Caption":"RBM 70","Color":-1,"IconActive":false,"IconValue":"","Value":70},{"Caption":"RBM 71","Color":-1,"IconActive":false,"IconValue":"","Value":71},{"Caption":"RBM 72","Color":-1,"IconActive":false,"IconValue":"","Value":72},{"Caption":"RBM 73","Color":-1,"IconActive":false,"IconValue":"","Value":73},{"Caption":"RBM 74","Color":-1,"IconActive":false,"IconValue":"","Value":74},{"Caption":"RBM 75","Color":-1,"IconActive":false,"IconValue":"","Value":75},{"Caption":"RBM 76","Color":-1,"IconActive":false,"IconValue":"","Value":76},{"Caption":"RBM 77","Color":-1,"IconActive":false,"IconValue":"","Value":77},{"Caption":"RBM 78","Color":-1,"IconActive":false,"IconValue":"","Value":78},{"Caption":"RBM 79","Color":-1,"IconActive":false,"IconValue":"","Value":79},{"Caption":"RBM 80","Color":-1,"IconActive":false,"IconValue":"","Value":80},{"Caption":"RBM 81","Color":-1,"IconActive":false,"IconValue":"","Value":81},{"Caption":"RBM 82","Color":-1,"IconActive":false,"IconValue":"","Value":82},{"Caption":"RBM 83","Color":-1,"IconActive":false,"IconValue":"","Value":83},{"Caption":"RBM 84","Color":-1,"IconActive":false,"IconValue":"","Value":84},{"Caption":"RBM 85","Color":-1,"IconActive":false,"IconValue":"","Value":85},{"Caption":"RBM 86","Color":-1,"IconActive":false,"IconValue":"","Value":86},{"Caption":"RBM 87","Color":-1,"IconActive":false,"IconValue":"","Value":87},{"Caption":"RBM 88","Color":-1,"IconActive":false,"IconValue":"","Value":88},{"Caption":"RBM 89","Color":-1,"IconActive":false,"IconValue":"","Value":89},{"Caption":"RBM 90","Color":-1,"IconActive":false,"IconValue":"","Value":90},{"Caption":"RBM 91","Color":-1,"IconActive":false,"IconValue":"","Value":91},{"Caption":"RBM 92","Color":-1,"IconActive":false,"IconValue":"","Value":92},{"Caption":"RBM 93","Color":-1,"IconActive":false,"IconValue":"","Value":93},{"Caption":"RBM 94","Color":-1,"IconActive":false,"IconValue":"","Value":94},{"Caption":"RBM 95","Color":-1,"IconActive":false,"IconValue":"","Value":95},{"Caption":"RBM 96","Color":-1,"IconActive":false,"IconValue":"","Value":96},{"Caption":"RBM 97","Color":-1,"IconActive":false,"IconValue":"","Value":97},{"Caption":"RBM 98","Color":-1,"IconActive":false,"IconValue":"","Value":98},{"Caption":"RBM 99","Color":-1,"IconActive":false,"IconValue":"","Value":99},{"Caption":"RBM 100","Color":-1,"IconActive":false,"IconValue":"","Value":100},{"Caption":"RBM 101","Color":-1,"IconActive":false,"IconValue":"","Value":101},{"Caption":"RBM 102","Color":-1,"IconActive":false,"IconValue":"","Value":102},{"Caption":"Circulate all modes","Color":-1,"IconActive":false,"IconValue":"","Value":255}]',
+        'LAYOUT'       => 0,
+        'ICON'         => 'Bulb',
+        'DISPLAY'      => 0,
+    ];
+
+    // -------------------------------------------------------------------------
+    // Methods
+    // -------------------------------------------------------------------------
+
+    /**
+     * In contrast to Construct, this function is called only once when creating the instance and starting IP-Symcon.
+     * Therefore, status variables and module properties which the module requires permanently should be created here.
+     *
+     * @return void
+     */
+    public function Create(): void
     {
         // Never delete this line!
         parent::Create();
@@ -293,37 +135,42 @@ class MagicHomeController extends IPSModule
         $this->RegisterPropertyString('MAC', '');
         $this->RegisterPropertyString('RGB', '012');
 
-        // Variablen Profile einrichten
-        $this->RegisterProfileInteger('MHC.Preset', 'Bulb', '', '', 0, 0, 0, $this->assoPreset);
-        $this->RegisterProfileInteger('MHC.Original', 'Bulb', '', '', 0, 0, 0, $this->assoOriginal);
-        $this->RegisterProfileInteger('MHC.Addressable', 'Bulb', '', '', 0, 0, 0, $this->assoAddressable);
+        // Setup Presentations
+        $preset = $this->TranslatePresentation(self::MHC_PRESENTATION_PRESET, 'OPTIONS', 'Caption');
+        $original = $this->TranslatePresentation(self::MHC_PRESENTATION_ORIGINAL, 'OPTIONS', 'Caption');
+        $addressable = $this->TranslatePresentation(self::MHC_PRESENTATION_ADDRESSABLE, 'OPTIONS', 'Caption');
 
         // Variablen erzeugen
-        $varID = $this->RegisterVariableBoolean('Power', $this->Translate('Power'), '~Switch', 0);
+        $varID = $this->RegisterVariableBoolean('Power', $this->Translate('Power'), self::MHC_PRESENTATION_SWITCH, 0);
         $this->EnableAction('Power');
-        $varID = $this->RegisterVariableInteger('Color', $this->Translate('Color'), '~HexColor', 1);
+        $varID = $this->RegisterVariableInteger('Color', $this->Translate('Color'), self::MHC_PRESENTATION_COLOR, 1);
         $this->EnableAction('Color');
-        $varID = $this->RegisterVariableInteger('Speed', $this->Translate('Speed'), '~Intensity.100', 2);
+        $varID = $this->RegisterVariableInteger('Speed', $this->Translate('Speed'), self::MHC_PRESENTATION_SLIDER, 2);
         $this->EnableAction('Speed');
-        $varID = $this->RegisterVariableInteger('Brightness', $this->Translate('Brightness'), '~Intensity.100', 3);
+        $varID = $this->RegisterVariableInteger('Brightness', $this->Translate('Brightness'), self::MHC_PRESENTATION_SLIDER, 3);
         $this->EnableAction('Brightness');
-        $varID = $this->RegisterVariableInteger('Mode', $this->Translate('Mode'), 'MHC.Preset', 4);
+        $varID = $this->RegisterVariableInteger('Mode', $this->Translate('Mode'), $preset, 4);
         $this->EnableAction('Mode');
     }
 
     /**
-     * Destroy.
+     * This function is called when deleting the instance during operation and when updating via "Module Control".
+     * The function is not called when exiting IP-Symcon.
+     *
+     * @return void
      */
-    public function Destroy()
+    public function Destroy(): void
     {
         // Never delete this line!
         parent::Destroy();
     }
 
     /**
-     * Apply Configuration Changes.
+     * Is executed when "Apply" is pressed on the configuration page and immediately after the instance has been created.
+     *
+     * @return void
      */
-    public function ApplyChanges()
+    public function ApplyChanges(): void
     {
         // Never delete this line!
         parent::ApplyChanges();
@@ -344,16 +191,20 @@ class MagicHomeController extends IPSModule
         $this->RegisterVariableInteger('Mode', $this->Translate('Mode'), $this->GetPatternProfile($type), 4);
 
         // Debug message
-        $this->SendDebug(__FUNCTION__, 'TYPE=0x' . dechex($type) . ', IP=' . $tcpip . ', RGB=' . $rgb, 0);
+        $this->LogDebug(__FUNCTION__, 'TYPE=0x' . dechex($type) . ', IP=' . $tcpip . ', RGB=' . $rgb);
     }
 
     /**
-     * Call by visual changes.
+     * Is called when, for example, a button is clicked in the visualization.
+     *
+     * @param string $ident Ident of the variable
+     * @param mixed $value The value to be set
+     * @return void
      */
-    public function RequestAction($ident, $value)
+    public function RequestAction(string $ident, mixed $value): void
     {
         // Debug
-        $this->SendDebug(__FUNCTION__, $ident . ' => ' . $value);
+        $this->LogDebug(__FUNCTION__, $ident . ' => ' . $value);
         switch ($ident) {
             // Switch Power On/Off
             case 'Power':
@@ -372,8 +223,8 @@ class MagicHomeController extends IPSModule
                 $this->SetVariableDisabled('Color', $disabled);
                 // Brightness depend on protocol
                 $type = $this->ReadPropertyInteger('TYPE');
-                $prot = MAGIC_HOME_CONTROLLER[$type][1];
-                if (in_array($prot, BRIGHTNESS_EFFECTS_PROTOCOLS)) {
+                $prot = self::MAGIC_HOME_CONTROLLER[$type][1];
+                if (in_array($prot, self::BRIGHTNESS_EFFECTS_PROTOCOLS)) {
                     $this->SetVariableDisabled('Brightness', false);
                 } else {
                     $this->SetVariableDisabled('Brightness', $disabled);
@@ -410,8 +261,12 @@ class MagicHomeController extends IPSModule
      * Using the custom prefix this function will be callable from PHP and JSON-RPC through:.
      *
      * MHC_SetBrightness(int $InstanzID, int $Brightness);
+     *
+     * @param int $brightness The brightness value to set.
+     *
+     * @return void
      */
-    public function SetBrightness(int $brightness)
+    public function SetBrightness(int $brightness): void
     {
         $this->RequestAction('Brightness', $brightness);
     }
@@ -421,8 +276,12 @@ class MagicHomeController extends IPSModule
      * Using the custom prefix this function will be callable from PHP and JSON-RPC through:.
      *
      * MHC_SetColor(int $InstanzID, int $Color);
+     *
+     * @param int $color The color value to set.
+     *
+     * @return void
      */
-    public function SetColor(int $color)
+    public function SetColor(int $color): void
     {
         $this->RequestAction('Color', $color);
     }
@@ -432,8 +291,12 @@ class MagicHomeController extends IPSModule
      * Using the custom prefix this function will be callable from PHP and JSON-RPC through:.
      *
      * MHC_SetMode(int $InstanzID, int $Mode);
+     *
+     * @param int $mode The mode to set.
+     *
+     *
      */
-    public function SetMode(int $mode)
+    public function SetMode(int $mode): void
     {
         $this->RequestAction('Mode', $mode);
     }
@@ -443,8 +306,12 @@ class MagicHomeController extends IPSModule
      * Using the custom prefix this function will be callable from PHP and JSON-RPC through:.
      *
      * MHC_SetPower(int $InstanzID, bool $Power);
+     *
+     * @param bool $power The power state to set.
+     *
+     * @return void
      */
-    public function SetPower(bool $power)
+    public function SetPower(bool $power): void
     {
         $this->RequestAction('Power', $power);
     }
@@ -454,19 +321,27 @@ class MagicHomeController extends IPSModule
      * Using the custom prefix this function will be callable from PHP and JSON-RPC through:.
      *
      * MHC_SetSpeed(int $InstanzID, int $Speed);
+     *
+     * @param int $speed The speed value to set.
+     *
+     * @return void
      */
-    public function SetSpeed(int $speed)
+    public function SetSpeed(int $speed): void
     {
         $this->RequestAction('Speed', $speed);
     }
 
     /**
      * Send power state data.
+     *
+     * @param bool $value The power state to send.
+     *
+     * @return void
      */
-    private function SendPower($value)
+    private function SendPower(bool $value): void
     {
         $type = $this->ReadPropertyInteger('TYPE');
-        $class = CLASS_PROTOCOL[MAGIC_HOME_CONTROLLER[$type][1]];
+        $class = self::CLASS_PROTOCOL[self::MAGIC_HOME_CONTROLLER[$type][1]];
         $protocol = new $class();
         $state = $protocol->ConstructStateChange($value);
         $this->SendData($state);
@@ -474,8 +349,10 @@ class MagicHomeController extends IPSModule
 
     /**
      * Send function data.
+     *
+     * @return void
      */
-    private function SendFunction()
+    private function SendFunction(): void
     {
         // Get function code
         $pattern = $this->GetValue('Mode');
@@ -486,7 +363,7 @@ class MagicHomeController extends IPSModule
         $brightness = $this->GetValue('Brightness'); // / 100;
         // protocol
         $type = $this->ReadPropertyInteger('TYPE');
-        $class = CLASS_PROTOCOL[MAGIC_HOME_CONTROLLER[$type][1]];
+        $class = self::CLASS_PROTOCOL[self::MAGIC_HOME_CONTROLLER[$type][1]];
         $protocol = new $class();
         $data = $protocol->ConstructPresetPattern($pattern, $speed, $brightness);
         // send data
@@ -495,8 +372,10 @@ class MagicHomeController extends IPSModule
 
     /**
      * Send color data.
+     *
+     * @return void
      */
-    private function SendColor()
+    private function SendColor(): void
     {
         // Check mode
         $mode = $this->GetValue('Mode');
@@ -509,52 +388,54 @@ class MagicHomeController extends IPSModule
         $rgb[0] = (($color >> 16) & 0xFF); // red
         $rgb[1] = (($color >> 8) & 0xFF); // green
         $rgb[2] = ($color & 0xFF); // blue
-        $this->SendDebug(__FUNCTION__, $rgb);
+        $this->LogDebug(__FUNCTION__, $rgb);
         // map with brightness
         $rgb[0] *= $brightness;
         $rgb[1] *= $brightness;
         $rgb[2] *= $brightness;
-        $this->SendDebug(__FUNCTION__, $rgb);
+        $this->LogDebug(__FUNCTION__, $rgb);
         // map rgb channel
         $channel = $this->ReadPropertyString('RGB');
         $index = (int) $channel[0];
-        $this->SendDebug(__FUNCTION__, "0 -> $index", 0);
+        $this->LogDebug(__FUNCTION__, "0 -> $index");
         $r = floor($rgb[$index]);
         $index = (int) $channel[1];
-        $this->SendDebug(__FUNCTION__, "1 -> $index", 0);
+        $this->LogDebug(__FUNCTION__, "1 -> $index");
         $g = floor($rgb[$index]);
         $index = (int) $channel[2];
-        $this->SendDebug(__FUNCTION__, "2 -> $index", 0);
+        $this->LogDebug(__FUNCTION__, "2 -> $index");
         $b = floor($rgb[$index]);
         // protocol
         $type = $this->ReadPropertyInteger('TYPE');
-        $class = CLASS_PROTOCOL[MAGIC_HOME_CONTROLLER[$type][1]];
+        $class = self::CLASS_PROTOCOL[self::MAGIC_HOME_CONTROLLER[$type][1]];
         $protocol = new $class();
-        $data = $protocol->ConstructLevelsChange(true, $r, $g, $b, 0x00, 0x00, 0x00);
+        $data = $protocol->ConstructLevelsChange(true, (int) $r, (int) $g, (int) $b, 0x00, 0x00, 0x00);
         // send data
         $this->SendData($data);
     }
 
     /**
      * Sync controller state to variables.
+     *
+     * @return void
      */
-    private function SendSync()
+    private function SendSync(): void
     {
         // Send Message ***************************************************************
         $type = $this->ReadPropertyInteger('TYPE');
-        $class = CLASS_PROTOCOL[MAGIC_HOME_CONTROLLER[$type][1]];
+        $class = self::CLASS_PROTOCOL[self::MAGIC_HOME_CONTROLLER[$type][1]];
         $protocol = new $class();
         $query = $protocol->ConstructStateQuery();
         $data = $this->SendData($query, 2);
-        $this->SendDebug(__FUNCTION__, bin2hex($data), 0);
+        $this->LogDebug(__FUNCTION__, bin2hex($data));
         if (strlen($data) != $protocol->StateResponseLength()) {
-            $this->SendDebug(__FUNCTION__, 'No sync possible!');
+            $this->LogDebug(__FUNCTION__, 'No sync possible!');
             return;
         }
 
         // Convert to array (ONE based)
         $rx = unpack('C*', $data);
-        $this->SendDebug(__FUNCTION__, $rx);
+        $this->LogDebug(__FUNCTION__, $rx);
         // Check controler type
         if ($rx[2] != $type) {
             $this->LogMessage('Wrong controller type:' . $rx[2], KL_ERROR);
@@ -565,41 +446,42 @@ class MagicHomeController extends IPSModule
 
         // Check mode ******************************************************************
         $pattern = $rx[4];
-        $this->SendDebug(__FUNCTION__, 'Pattern: ' . $pattern);
+        $this->LogDebug(__FUNCTION__, 'Pattern: ' . $pattern);
         // Switches
-        if (in_array($protocol->Id(), MAGIC_HOME_SWITCHES)) {
-            $this->SendDebug(__FUNCTION__, 'Sync for switches not full supported!');
+        if (in_array($protocol->Id(), self::MAGIC_HOME_SWITCHES)) {
+            $this->LogDebug(__FUNCTION__, 'Sync for switches not full supported!');
             return;
         }
         // Custom Effects
-        if ($pattern == EFFECT_CUSTOM_CODE) {
-            $this->SendDebug(__FUNCTION__, 'Controler im custom effect mode - not supported!');
+        if ($pattern == self::EFFECT_CUSTOM_CODE) {
+            $this->LogDebug(__FUNCTION__, 'Controler im custom effect mode - not supported!');
             return;
         }
         // Custom Effects
-        if ($pattern == PRESET_MUSIC_MODE) {
-            $this->SendDebug(__FUNCTION__, 'Controler im music mode - not supported!');
+        if ($pattern == self::PRESET_MUSIC_MODE) {
+            $this->LogDebug(__FUNCTION__, 'Controler im music mode - not supported!');
             return;
         }
         // Color Mode
+        $mode = 0;
         if (in_array($pattern, [0x41, 0x61])) {
-            $mode = 0; // Manuel
+            // Manuel
         } elseif (($pattern >= 0x25) && ($pattern <= 0x38)) {
             $mode = $rx[5];
-            if (in_array($protocol->Id(), ORIGINAL_EFFECTS_PROTOCOLS)) {
+            if (in_array($protocol->Id(), self::ORIGINAL_EFFECTS_PROTOCOLS)) {
                 $mode = ($pattern << 8) + $mode - 99;
-            } elseif (in_array($protocol->Id(), ADDRESSABLE_EFFECTS_PROTOCOLS)) {
+            } elseif (in_array($protocol->Id(), self::ADDRESSABLE_EFFECTS_PROTOCOLS)) {
                 if ($pattern == 0x25) {
                     // mode == $mode
                 }
                 if ($pattern == 0x24) {
-                    $this->SendDebug(__FUNCTION__, 'Controler in multi color effect mode - not supported!');
+                    $this->LogDebug(__FUNCTION__, 'Controler in multi color effect mode - not supported!');
                     return;
                 }
             } else {
                 $mode = $pattern;
             }
-        } elseif (in_array($protocol->Id(), ADDRESSABLE_PROTOCOLS)) {
+        } elseif (in_array($protocol->Id(), self::ADDRESSABLE_PROTOCOLS)) {
             $mode = $rx[5];
             if ($mode == 0x61) {
                 $mode = 0;
@@ -610,39 +492,40 @@ class MagicHomeController extends IPSModule
         $disabled = ($mode > 0) ? true : false;
         $this->SetVariableDisabled('Speed', !$disabled);
         $this->SetVariableDisabled('Color', $disabled);
-        if (in_array($protocol->Id(), BRIGHTNESS_EFFECTS_PROTOCOLS)) {
+        if (in_array($protocol->Id(), self::BRIGHTNESS_EFFECTS_PROTOCOLS)) {
             $this->SetVariableDisabled('Brightness', false);
         } else {
             $this->SetVariableDisabled('Brightness', $disabled);
         }
-        $this->SendDebug(__FUNCTION__, 'Mode = ' . $mode);
+        $this->LogDebug(__FUNCTION__, 'Mode = ' . $mode);
         $this->SetValueInteger('Mode', $mode);
 
         // Check speed ******************************************************************
         $speed = $rx[6];
-        if (!in_array($protocol->Id(), ADDRESSABLE_PROTOCOLS)) {
+        if (!in_array($protocol->Id(), self::ADDRESSABLE_PROTOCOLS)) {
             $speed = $protocol::DelayToSpeed($rx[6]);
         }
-        $this->SendDebug(__FUNCTION__, 'Speed = ' . $speed);
+        $this->LogDebug(__FUNCTION__, 'Speed = ' . $speed);
         $this->SetValueInteger('Speed', $speed);
 
         // Check brithness *************************************************************
         $update = false;
+        $div = 0;
         if ($mode == 0) {
             // (grössten finden; wenn 0 = weiß mit Helligkeit 0; sonst (max-wert/255) * 100)
             $max = max($rx[7], $rx[8], $rx[9]);
-            $this->SendDebug(__FUNCTION__, 'Max = ' . $max);
+            $this->LogDebug(__FUNCTION__, 'Max = ' . $max);
             $div = $max / 255;
-            $this->SendDebug(__FUNCTION__, 'Div = ' . $div);
+            $this->LogDebug(__FUNCTION__, 'Div = ' . $div);
             $brightness = $div * 100;
             $update = true;
-        } elseif (in_array($protocol->Id(), BRIGHTNESS_EFFECTS_PROTOCOLS)) {
+        } elseif (in_array($protocol->Id(), self::BRIGHTNESS_EFFECTS_PROTOCOLS)) {
             // the red byte holds the brightness during an effect
             $brightness = $rx[7];
             $update = true;
         }
         if ($update) {
-            $this->SendDebug(__FUNCTION__, 'Brightness = ' . $brightness);
+            $this->LogDebug(__FUNCTION__, 'Brightness = ' . $brightness);
             if ($brightness > 100) {
                 $brightness = 100;
             }
@@ -651,7 +534,11 @@ class MagicHomeController extends IPSModule
         // Check color *****************************************************************
         if ($mode == 0) {
             $channel = $this->ReadPropertyString('RGB');
-            $red = $rx[7 + $channel[0]] / $div;
+            $redChannel = (int) $channel[0];
+            $greenChannel = (int) $channel[1];
+            $blueChannel = (int) $channel[2];
+
+            $red = $rx[7 + $redChannel] / $div;
             if ($red < 0) {
                 $red = 0;
             }
@@ -659,7 +546,7 @@ class MagicHomeController extends IPSModule
                 $red = 255;
             }
             $color = intval($red) << 16;
-            $green = $rx[7 + $channel[1]] / $div;
+            $green = $rx[7 + $greenChannel] / $div;
             if ($green < 0) {
                 $green = 0;
             }
@@ -667,7 +554,7 @@ class MagicHomeController extends IPSModule
                 $green = 255;
             }
             $color += intval($green) << 8;
-            $blue = $rx[7 + $channel[2]] / $div;
+            $blue = $rx[7 + $blueChannel] / $div;
             if ($blue < 0) {
                 $blue = 0;
             }
@@ -675,7 +562,7 @@ class MagicHomeController extends IPSModule
                 $blue = 255;
             }
             $color += intval($blue);
-            $this->SendDebug(__FUNCTION__, 'Color = 0x' . dechex($red) . dechex($green) . dechex($blue) . ' (' . $color . ')');
+            $this->LogDebug(__FUNCTION__, 'Color = 0x' . dechex($red) . dechex($green) . dechex($blue) . ' (' . $color . ')');
             $this->SetValueInteger('Color', $color);
         }
     }
@@ -683,7 +570,9 @@ class MagicHomeController extends IPSModule
     /**
      * Send data array to controller.
      *
-     * @param array $values Configuration Data
+     * @param array<int> $values Configuration Data
+     *
+     * @return string Received data
      */
     private function SendData(array $values, int $read = 0): string
     {
@@ -692,19 +581,19 @@ class MagicHomeController extends IPSModule
         $socket = @fsockopen($path, self::SOCKET_PORT, $errno, $errstr, self::SOCKET_TIME);
         // Check Socket
         if (!$socket) {
-            $this->SendDebug(__FUNCTION__, $path . " -> $errstr ($errno)", 0);
+            $this->LogDebug(__FUNCTION__, $path . " -> $errstr ($errno)");
             return $data;
         } else {
-            $this->SendDebug(__FUNCTION__, 'Connection etablished: ' . $path, 0);
+            $this->LogDebug(__FUNCTION__, 'Connection etablished: ' . $path);
         }
         $send = '';
-        //$this->SendDebug(__FUNCTION__, 'Values=' . print_r($values, true));
+        //$this->LogDebug(__FUNCTION__, 'Values=' . print_r($values, true));
         foreach ($values as $value) {
             $send .= chr(intval($value));
         }
         // send data
         fwrite($socket, $send);
-        $this->SendDebug(__FUNCTION__, 'Send=' . bin2hex($send), 0);
+        $this->LogDebug(__FUNCTION__, 'Send=' . bin2hex($send));
 
         // read data
         if ($read != 0) {
@@ -714,7 +603,7 @@ class MagicHomeController extends IPSModule
                 if (($recv === false) || (strlen($recv) != $read)) {
                     break;
                 }
-                $this->SendDebug(__FUNCTION__, 'Read=' . bin2hex($recv), 0);
+                $this->LogDebug(__FUNCTION__, 'Read=' . bin2hex($recv));
                 $data .= $recv;
             }
         }
@@ -724,21 +613,5 @@ class MagicHomeController extends IPSModule
 
         // return rad data
         return $data;
-    }
-
-    /**
-     * Calculatue checksum for given data.
-     *
-     * @param array $values Values over which the checksum is to be formed
-     * @return integer Checksum
-     */
-    private function GetChecksum(array $values)
-    {
-        $checksum = array_sum($values);
-        $checksum = dechex($checksum);
-        $checksum = substr($checksum, -2);
-        $checksum = hexdec($checksum);
-        // Return checksum
-        return $checksum;
     }
 }
