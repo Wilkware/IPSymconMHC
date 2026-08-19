@@ -33,6 +33,24 @@ class MagicHomeController extends IPSModuleStrict
     use MagicHelper;
     use VariableHelper;
 
+    /**
+     * @var array<string,array{presentation:array<string,mixed>,protocols:int[]}>
+     */
+    public const MHC_PRESENTATION_PATTERN = [
+        'Preset' => [
+            'presentation' => self::MHC_PRESENTATION_PRESET,
+            'protocols'    => [0x01, 0x04, 0x06, 0x07, 0x08, 0x09, 0x0B, 0x0E, 0x10, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x21, 0x25, 0x33, 0x35, 0x41, 0x44, 0x45, 0x52, 0x54, 0x62, 0x81, 0x93, 0x94, 0x95, 0x96, 0x97, 0xD1, 0xE1, 0xE2],
+        ],
+        'Original' => [
+            'presentation' => self::MHC_PRESENTATION_ORIGINAL,
+            'protocols'    => [0xA1],
+        ],
+        'Addressable' => [
+            'presentation' => self::MHC_PRESENTATION_ADDRESSABLE,
+            'protocols'    => [0xA2, 0xA3],
+        ],
+    ];
+
     // -------------------------------------------------------------------------
     // Socket Constants
     // -------------------------------------------------------------------------
@@ -64,20 +82,34 @@ class MagicHomeController extends IPSModuleStrict
      * @var array<string,mixed> HexColor Presentation (Color)
      */
     private const MHC_PRESENTATION_COLOR = [
-        'PRESENTATION' => VARIABLE_PRESENTATION_SLIDER,
-        'USAGE_TYPE'   => 2,
-        'PERCENTAGE'   => true,
-        'ICON'         => 'signal',
-        'STEP_SIZE'    => 1.0,
-        'SUFFIX'       => ' %',
+        'PRESENTATION'  => VARIABLE_PRESENTATION_COLOR,
+        'SELECTION'     => 0,
+        'PRESET_VALUES' => '[{"Color":16007990},{"Color":16761095},{"Color":10233776},{"Color":48340},{"Color":2201331},{"Color":15277667}]',
+        'ENCODING'      => 0,
+        'COLOR_SPACE'   => 1,
+        'COLOR_CURVE'   => 0,
     ];
 
     /**
      * @var array<string,mixed> Intensity Presentation (Slider)
      */
     private const MHC_PRESENTATION_SLIDER = [
-        'PRESENTATION' => VARIABLE_PRESENTATION_SLIDER,
-
+        'USAGE_TYPE'          => 2,
+        'THOUSANDS_SEPARATOR' => '',
+        'DECIMAL_SEPARATOR'   => 'Client',
+        'PERCENTAGE'          => true,
+        'DIGITS'              => 0,
+        'INTERVALS'           => '[]',
+        'ICON'                => 'Intensity',
+        'INTERVALS_ACTIVE'    => false,
+        'MAX'                 => 100,
+        'GRADIENT_TYPE'       => 0,
+        'MIN'                 => 0,
+        'CUSTOM_GRADIENT'     => '[]',
+        'PREFIX'              => '',
+        'PRESENTATION'        => VARIABLE_PRESENTATION_SLIDER,
+        'STEP_SIZE'           => 1.0,
+        'SUFFIX'              => ' %',
     ];
 
     /**
@@ -140,6 +172,7 @@ class MagicHomeController extends IPSModuleStrict
         $original = $this->TranslatePresentation(self::MHC_PRESENTATION_ORIGINAL, 'OPTIONS', 'Caption');
         $addressable = $this->TranslatePresentation(self::MHC_PRESENTATION_ADDRESSABLE, 'OPTIONS', 'Caption');
 
+        $this->LogDebug(__FUNCTION__, $preset);
         // Variablen erzeugen
         $varID = $this->RegisterVariableBoolean('Power', $this->Translate('Power'), self::MHC_PRESENTATION_SWITCH, 0);
         $this->EnableAction('Power');
@@ -613,5 +646,23 @@ class MagicHomeController extends IPSModuleStrict
 
         // return rad data
         return $data;
+    }
+
+    /**
+     * Extract preset presentation from protocol.
+     *
+     * @param int $value Protocol number
+     *
+     * @return array<string,mixed> Preset Presentation.
+     */
+    private function GetPatternProfile(int $value): array
+    {
+        foreach (self::MHC_PRESENTATION_PATTERN as $profile) {
+            if (in_array($value, $profile['protocols'], true)) {
+                return $profile['presentation'];
+            }
+        }
+
+        return self::MHC_PRESENTATION_PRESET;
     }
 }

@@ -230,36 +230,6 @@ trait MagicHelper
      * @var int[]
      */
     public const MAGIC_HOME_SWITCHES = [0x19, 0x93, 0x0B, 0x93, 0x94, 0x95, 0x96, 0x97];
-
-    /**
-     * Supported preset pattern profile, keyed by profile name.
-     *
-     * @var array<string,int[]>
-     */
-    public const MAGIC_HOME_PATTERN = [
-        'MHC.Preset'        => [0x01, 0x04, 0x06, 0x07, 0x08, 0x09, 0x0B, 0x0E, 0x10, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x21, 0x25, 0x33, 0x35, 0x41, 0x44, 0x45, 0x52, 0x54, 0x62, 0x81, 0x93, 0x94, 0x95, 0x96, 0x97, 0xD1, 0xE1, 0xE2],
-        'MHC.Original'      => [0xA1],
-        'MHC.Addressable'   => [0xA2, 0xA3],
-    ];
-
-    /**
-     * Extract preset profile name from protocol.
-     *
-     * @param int $value protocol number
-     *
-     * @return string Preset Profile Name.
-     */
-    private function GetPatternProfile(int $value): string
-    {
-        $pattern = 'MHC.Preset';
-        foreach (self::MAGIC_HOME_PATTERN as $profile => $protocols) {
-            if (in_array($value, $protocols, true)) {
-                $pattern = $profile;
-                break;
-            }
-        }
-        return $pattern;
-    }
 }
 
 /**
